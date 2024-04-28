@@ -18,7 +18,7 @@ from PyQt5.QtCore import pyqtSlot, QObject
 import numpy as np
 from scipy.signal import convolve2d
 
-from minesweeper.gui import MinesweeperGUI
+from minesweeper.minesweeper.gui import MinesweeperGUI
 from minesweeper_solver import Solver
 from minesweeper_solver.policies import corner_then_edge2_policy
 
@@ -44,10 +44,12 @@ class Example(QObject):
         games = 0
         expected_wins = 0
 
+        # This loop keeps running until we force quit
         while not self.quitting:
             seed = random.randint(-2 ** 31, 2 ** 31 - 1)
             print('Seed: {}'.format(seed))
             random.seed(seed)
+            # The initial board configuration depends on a seed
             gui.reset()
 
             expected_win = 1
@@ -57,16 +59,23 @@ class Example(QObject):
             while not game.done and not self.quitting:
                 prob = solver.solve(state)
                 # Flag newly found mines.
+                # The below loop right clicks (flags) every newly found certain mine that is still unflagged. 
                 for y, x in zip(*((prob == 1) & (state != "flag")).nonzero()):
                     gui.right_click_action(x, y)
                 best_prob = np.nanmin(prob)
+                # Finds the location of the cell with the least probability of being a mine
                 ys, xs = (prob == best_prob).nonzero()
+                # Non zero-probability for the cell being a mine
                 if best_prob != 0:
+                    # Verifies whether all the probabilistic conditions are still satisfied
+                    # If not, it throws an exception (we could probably get rid of this)
                     verify(game, prob)
+                    # The expected win measures how much uncertainty we have operated under so far
                     expected_win *= (1-best_prob)
                     x, y = corner_then_edge2_policy(prob)
                     print('GUESS ({:.4%}) ({}, {})'.format(best_prob, x, y))
                     gui.left_click_action(x, y)
+                # Enters this block if there is zero probability for the cell being a mine
                 else:
                     # Open all the knowns.
                     for x, y in zip(xs, ys):
@@ -75,8 +84,8 @@ class Example(QObject):
             expected_wins += expected_win
             if game.is_won():
                 wins += 1
-            print('{} | E[GameWin%] = {:.3}, Wins = {}, E[Wins] = {:.3}, Win% = {:.3%}'.format(
-                'W' if game.is_won() else 'L', expected_win, wins, expected_wins, wins/games))
+            print('{} | E[GameWin%] = {:.3}, Wins = {}, Games = {}, E[Wins] = {:.3}, Win% = {:.3%}'.format(
+                'W' if game.is_won() else 'L', expected_win, wins, games, expected_wins, wins/games))
             sleep(5)
 
 
